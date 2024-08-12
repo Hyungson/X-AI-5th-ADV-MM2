@@ -1,56 +1,35 @@
-import cv2
+import imageio
 import torch
-import random
 import numpy as np
 
 class VideoCapture:
 
     @staticmethod
-    def load_frames_from_video(video_path,
-                               num_frames,
-                               sample='rand'):
+    def load_frames_from_video(video_path, num_frames, sample='rand'):
+        try:
+            reader = imageio.get_reader(video_path, 'ffmpeg')
+        except Exception as e:
+            print(f"Warning: Unable to open video file {video_path}: {str(e)}")
+            return None, None
 
-        cap = cv2.VideoCapture(video_path)
-        assert (cap.isOpened()), video_path
-        vlen = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
+        vlen = len(reader)
         acc_samples = min(num_frames, vlen)
         intervals = np.linspace(start=0, stop=vlen, num=acc_samples + 1).astype(int)
-        ranges = []
-
-        for idx, interv in enumerate(intervals[:-1]):
-            ranges.append((interv, intervals[idx + 1] - 1))
-
+        ranges = [(intervals[i], intervals[i + 1] - 1) for i in range(len(intervals) - 1)]
 
         if sample == 'rand':
-            frame_idxs = [random.choice(range(x[0], x[1])) for x in ranges]
+            frame_idxs = [np.random.randint(start, end) for start, end in ranges]
         else:
-            frame_idxs = [(x[0] + x[1]) // 2 for x in ranges]
+            frame_idxs = [(start + end) // 2 for start, end in ranges]
 
         frames = []
-        for index in frame_idxs:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, index)
-            ret, frame = cap.read()
+        for idx in frame_idxs:
+            frame = reader.get_data(idx)
+            frame = torch.from_numpy(frame).permute(2, 0, 1)  # HWC to CHW
+            frames.append(frame)
 
-            if not ret:
-                n_tries = 5
-                for _ in range(n_tries):
-                    ret, frame = cap.read()
-                    if ret:
-                        break
+        if len(frames) < num_frames:
+            frames += [frames[-1]] * (num_frames - len(frames))
 
-            if ret:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frame = torch.from_numpy(frame)
-                # (H x W x C) to (C x H x W)
-                frame = frame.permute(2, 0, 1)
-                frames.append(frame)
-            else:
-                raise ValueError
-
-        while len(frames) < num_frames:
-            frames.append(frames[-1].clone())
-            
         frames = torch.stack(frames).float() / 255
-        cap.release()
         return frames, frame_idxs
