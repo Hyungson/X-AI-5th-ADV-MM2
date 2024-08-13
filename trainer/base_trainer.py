@@ -19,8 +19,9 @@ class BaseTrainer:
         self.optimizer = optimizer
         self.start_epoch = 1
         self.global_step = 0
+        
 
-        self.num_epochs = config.num_epochs
+        self.num_epochs = 5 # config.num_epochs
         self.writer = writer
         self.checkpoint_dir = config.model_path
 
@@ -44,6 +45,10 @@ class BaseTrainer:
                num_steps: Number of steps in epoch
         """
         raise NotImplementedError
+    
+    @abstractmethod
+    def _inf_epoch(self, text_prompt):
+        raise NotImplementedError
 
 
     def train(self):
@@ -54,6 +59,10 @@ class BaseTrainer:
 
     def validate(self):
         self._valid_epoch_step(0,0,0)
+        
+    def inference(self, text_prompt):
+        best_video_id, best_similarity = self._inf_epoch(text_prompt)
+        return best_video_id, best_similarity
 
     def _prepare_device(self):
         """
@@ -106,3 +115,19 @@ class BaseTrainer:
 
         print("Checkpoint loaded")
 
+    def load_bestmodel(self, model):
+        # Load the model checkpoint from model_best.pth in the current directory
+        checkpoint_path = ".\model_best.pth" # os.path.join(self.checkpoint_dir, 
+        if os.path.exists(checkpoint_path):
+            # 모델의 상태를 로드
+            checkpoint = torch.load(checkpoint_path)
+            
+            # 모델의 가중치를 체크포인트에서 로드
+            model.load_state_dict(checkpoint['state_dict'], strict = False)
+
+            # 필요한 경우, 체크포인트의 에포크 정보 등을 로드할 수 있습니다.
+            start_epoch = checkpoint.get('epoch', 0)  # epoch 정보를 가져오거나, 기본값으로 0을 사용
+            
+            print(f"Model loaded from {checkpoint_path} at epoch {start_epoch}")
+        else:
+            raise FileNotFoundError(f"No checkpoint found at {checkpoint_path}")
