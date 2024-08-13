@@ -42,8 +42,7 @@ def np_softmax(X, theta = 1.0, axis = None):
 def sim_matrix_training(text_embeds, vid_embeds_pooled, pooling_type):
     """
     Computes the similarity matrix using pooled video frames
-    
-    Output
+    Output:
         sims: num_texts x num_vids
     """
     text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
@@ -51,14 +50,9 @@ def sim_matrix_training(text_embeds, vid_embeds_pooled, pooling_type):
 
     if pooling_type == 'avg':
         sims = torch.mm(text_embeds, vid_embeds_pooled.t())
-        
     else:
-        # num_texts x embed_dim x num_vids
-        vid_embeds_pooled = vid_embeds_pooled.permute(1,2,0)
-        # num_texts x 1 x embed_dim
-        text_embeds = text_embeds.unsqueeze(1)
-        
-        sims = torch.bmm(text_embeds, vid_embeds_pooled).squeeze(1)
+        vid_embeds_pooled = vid_embeds_pooled.expand(text_embeds.shape[0], -1, -1)
+        sims = torch.bmm(text_embeds.unsqueeze(1), vid_embeds_pooled).squeeze(1)
 
     return sims
 
