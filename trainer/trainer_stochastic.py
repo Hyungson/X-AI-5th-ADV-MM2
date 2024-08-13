@@ -19,7 +19,7 @@ class Trainer(BaseTrainer):
 
     def __init__(self, model, loss, metrics, optimizer, config: Config, train_data_loader,
                  valid_data_loader, tokenizer, lr_scheduler=None, writer=None):
-
+        #print(f"Trainer received config with num_epochs = {config.num_epochs}")  # 디버깅 메시지 추가
         super().__init__(model, loss, metrics, optimizer, config, writer)
         self.train_data_loader = train_data_loader
         self.valid_data_loader = valid_data_loader
@@ -266,3 +266,73 @@ class Trainer(BaseTrainer):
             res['loss_val'] =  total_val_loss
 
             return res
+    
+    def _inf_epoch(self, text_prompt):
+        self.model.eval()
+        vid_embed_arr = []
+        all_vid_ids = []
+
+        # Tokenize and process the input text prompt
+        if self.tokenizer is not None:
+            text_data = self.tokenizer(text_prompt, return_tensors='pt', padding=True, truncation=True)
+            if isinstance(text_data, torch.Tensor):
+                text_data = text_data.to(self.device)
+            else:
+                text_data = {key: val.to(self.device) for key, val in text_data.items()}
+
+        best_video_id = None
+        best_similarity = float('-inf')  # Initialize to negative infinity
+
+        with torch.no_grad():
+            for idx, data in tqdm(enumerate(self.valid_data_loader), total=len(self.valid_data_loader)):
+                data['video'] = data['video'].to(self.device)
+
+                # Get video embeddings
+                _, vid_embed, vid_embed_pooled, _ = self.model({'text': text_data, 'video': data['video']}, return_all_frames=True, is_train=False)
+
+                vid_embed_arr.append(vid_embed.cpu())
+
+                for v_id in data['video_id']:
+                    all_vid_ids.append(v_id)
+
+            # Concatenate all video embeddings
+            vid_embeds = torch.cat(vid_embed_arr).to(self.device)  # Ensure vid_embeds is on the same device
+
+            # Get the text embeddings using the model's text encoder
+            text_embed = self.model.clip.get_text_features(**text_data)
+            text_embed = text_embed / text_embed.norm(dim=-1, keepdim=True)  # Normalize the text embedding
+
+            # Ensure text_embed and vid_embeds are on the same device
+            text_embed = text_embed.to(self.device)
+
+            # Ensure all tensors are on the same device
+            self.model.pool_frames.to(self.device)
+            text_embed = text_embed.to(self.device)
+            vid_embeds = vid_embeds.to(self.device)
+
+            # Pool frames for inference once we have all texts and videos
+            vid_embeds_pooled = self.model.pool_frames(text_embed, vid_embeds)
+
+            # `vid_embeds_pooled`가 3D 텐서인 경우, 2D로 변환 (평균내기)
+            if vid_embeds_pooled.dim() == 3:
+                vid_embeds_pooled = vid_embeds_pooled.mean(dim=1)  # num_frames 차원에 대해 평균
+
+            # Normalize video embeddings
+            vid_embeds_pooled = vid_embeds_pooled / vid_embeds_pooled.norm(dim=-1, keepdim=True)
+
+            # Calculate cosine similarity between the text embedding and all video embeddings
+            sims = torch.mm(text_embed, vid_embeds_pooled.t())
+
+            # Find the index of the video with the highest similarity score
+            max_sim_idx = torch.argmax(sims).item()
+
+            # Get the highest similarity score
+            current_similarity = sims[0, max_sim_idx].item()
+
+            # Update if the current similarity is the best so far
+            if current_similarity > best_similarity:
+                best_similarity = current_similarity
+                best_video_id = all_vid_ids[max_sim_idx]
+
+        return best_video_id, best_similarity
+
