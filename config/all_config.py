@@ -32,6 +32,8 @@ def gen_log(model_path, msg, log_name):
 class AllConfig(Config):
     def __init__(self):
         super().__init__()
+        '''self.num_epochs = 5  # 또는 다른 값으로 설정
+        print(f"Config initialized with num_epochs = {self.num_epochs}")'''
 
     def time2file_name(self, time):
         year = time[0:4]
