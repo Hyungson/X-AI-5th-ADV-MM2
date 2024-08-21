@@ -11,6 +11,7 @@ from modules.metrics import t2v_metrics, v2t_metrics
 from modules.loss import LossFactory
 from trainer.trainer_stochastic import Trainer
 from config.all_config import gen_log
+from torchvision import transforms
 
 
 # @WJM: solve num_workers
@@ -81,14 +82,20 @@ def main():
     # Load the best model
     trainer.load_bestmodel(model)
     
+    # Define image transforms (ensure all images have consistent dimensions)
+    img_transforms = transforms.Compose([
+        transforms.Resize((224, 224)),  # Resize all frames to 224x224
+        transforms.ToTensor(),  # Convert frames to tensor
+    ])
+    
     # Custom Inference Dataset 생성
-    inference_dataset = InferenceDataset(config, config.videos_dir)
+    inference_dataset = InferenceDataset(config, img_transforms=img_transforms)
     inference_data_loader = DataLoader(inference_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
 
     # Trainer에서 inference_data_loader를 사용
     trainer.valid_data_loader = inference_data_loader
 
-    prompt = "A man playing guitar in a park"
+    prompt = "driving a car"  # "A man playing guitar in a park"
     best_video_id, best_similarity = trainer.inference(prompt)
     print(f"prompt: {prompt}")
     print(f"The video ID with the highest similarity is: {best_video_id}, Similarity = {best_similarity}")
@@ -97,5 +104,12 @@ def main():
 
 if __name__ == '__main__':
     main()
-
+    
+# MSRVTT inference
 # python inference.py --datetime=\data\MSRVTT   --arch=clip_stochastic   --videos_dir=data\MSRVTT\vids  --batch_size=32 --noclip_lr=3e-5 --transformer_dropout=0.3  --dataset_name=MSRVTT --msrvtt_train_file=9k   --stochasic_trials=20 --gpu='0'  --load_epoch=0  --num_epochs=5  --exp_name=MSR-VTT-9k
+
+# Holywood2 inference
+# python inference.py --datetime=\data\hollywood2   --arch=clip_stochastic   --videos_dir=data\hollywood2\test_clips  --batch_size=32 --noclip_lr=3e-5 --transformer_dropout=0.3  --dataset_name=hw2   --stochasic_trials=20 --gpu='0'  --load_epoch=0  --num_epochs=5  --exp_name=hw2
+# 서버에서 돌릴 때
+#python inference.py --datetime=./data/hollywood2   --arch=clip_stochastic   --videos_dir=./data/hollywood2/test_clips  --batch_size=16 --noclip_lr=3e-5 --transformer_dropout=0.3  --dataset_name=hw2   --stochasic_trials=20 --gpu='0'  --load_epoch=0  --num_epochs=5  --exp_name=hw2
+
