@@ -117,7 +117,7 @@ class BaseTrainer:
 
     def load_bestmodel(self, model):
         # Load the model checkpoint from model_best.pth in the current directory
-        checkpoint_path = ".\model_best.pth" # os.path.join(self.checkpoint_dir, 
+        checkpoint_path = ".\model_best.pth" # 서버: "./model_best.pth" 
         if os.path.exists(checkpoint_path):
             # 모델의 상태를 로드
             checkpoint = torch.load(checkpoint_path)
