@@ -1,3 +1,4 @@
+import os
 import gc
 import time
 import torch
@@ -30,7 +31,30 @@ class Trainer(BaseTrainer):
         self.window_metric = defaultdict(lambda: deque(maxlen=config.eval_window_size))
         self.best_window = -1.0
         self.best = -1.0
+        self.best_loss = float('inf')  # Best loss initialized to infinity
 
+    '''def _save_checkpoint(self, epoch, loss, save_best=False):
+        """
+        Saving checkpoints with loss included in the filename.
+        :param epoch: Current epoch number
+        :param loss: The loss value to include in the filename
+        :param save_best: If True, save checkpoint to 'model_best.pth'
+        """
+        state = {
+            'epoch': epoch,
+            'state_dict': self.model.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+        }
+
+        if save_best:
+            best_path = os.path.join(self.config.model_path, f'model_best_loss_{loss:.4f}.pth')
+            torch.save(state, best_path)
+            print(f"Saving current best: {best_path} ...")
+        else:
+            filename = os.path.join(self.config.model_path, f'checkpoint-epoch{epoch}-loss_{loss:.4f}.pth')
+            torch.save(state, filename)
+            print(f"Saving checkpoint: {filename} ...")
+'''
 
     def _train_epoch(self, epoch):
 
@@ -126,6 +150,16 @@ class Trainer(BaseTrainer):
         }
 
         return res
+        '''# 에폭마다 모델 체크포인트 저장
+        avg_loss = total_loss / num_steps
+        self._save_checkpoint(epoch, avg_loss)
+
+        # Save the best model if the current model's loss is the lowest so far
+        if avg_loss < self.best_loss:
+            self.best_loss = avg_loss
+            self._save_checkpoint(epoch, avg_loss, save_best=True)
+
+        return avg_loss'''
 
     
     def _valid_epoch_step(self, epoch, step, num_steps):
