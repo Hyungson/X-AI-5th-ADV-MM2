@@ -55,7 +55,9 @@ class BaseTrainer:
         for epoch in range(self.start_epoch, self.num_epochs + 1):
             result = self._train_epoch(epoch)
             if epoch % self.config.save_every == 0:
-                    self._save_checkpoint(epoch, save_best=False)
+                # Extract the loss from the result dictionary
+                loss = result['loss_train']
+                self._save_checkpoint(epoch, loss, save_best=False)
 
     def validate(self):
         self._valid_epoch_step(0,0,0)
@@ -92,6 +94,11 @@ class BaseTrainer:
         filename = f'.\ckpt\checkpoint_epoch_{epoch}_loss_{loss:.4f}.pth'
         print(f"Saving checkpoint: {filename} ...")
         torch.save(state, filename)
+        
+        if save_best:
+            best_path = os.path.join(self.checkpoint_dir, 'model_best.pth')
+            torch.save(state, best_path)
+            print("Saving current best: model_best.pth ...")
         
     '''def _save_checkpoint(self, epoch, save_best=False):
         """
