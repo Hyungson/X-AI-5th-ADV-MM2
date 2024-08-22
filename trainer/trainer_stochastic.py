@@ -33,31 +33,9 @@ class Trainer(BaseTrainer):
         self.best = -1.0
         self.best_loss = float('inf')  # Best loss initialized to infinity
 
-    '''def _save_checkpoint(self, epoch, loss, save_best=False):
-        """
-        Saving checkpoints with loss included in the filename.
-        :param epoch: Current epoch number
-        :param loss: The loss value to include in the filename
-        :param save_best: If True, save checkpoint to 'model_best.pth'
-        """
-        state = {
-            'epoch': epoch,
-            'state_dict': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-        }
-
-        if save_best:
-            best_path = os.path.join(self.config.model_path, f'model_best_loss_{loss:.4f}.pth')
-            torch.save(state, best_path)
-            print(f"Saving current best: {best_path} ...")
-        else:
-            filename = os.path.join(self.config.model_path, f'checkpoint-epoch{epoch}-loss_{loss:.4f}.pth')
-            torch.save(state, filename)
-            print(f"Saving checkpoint: {filename} ...")
-'''
+    
 
     def _train_epoch(self, epoch):
-
         self.model.train()
         total_loss = 0.0
         num_steps = len(self.train_data_loader)
@@ -65,8 +43,7 @@ class Trainer(BaseTrainer):
         
         for batch_idx, data in enumerate(self.train_data_loader):
             if self.tokenizer is not None:
-                data['text'] = self.tokenizer(data['text'], return_tensors='pt', padding=True,
-                                              truncation=True)
+                data['text'] = self.tokenizer(data['text'], return_tensors='pt', padding=True, truncation=True)
             if isinstance(data['text'], torch.Tensor):
                 data['text'] = data['text'].to(self.device)
             else:
@@ -75,13 +52,11 @@ class Trainer(BaseTrainer):
             data['video'] = data['video'].to(self.device)
 
             text_embeds, video_embeds_pooled, text_embeds_stochastic, text_mean, text_log_var = self.model(data, is_train=True)
-            # [bs, dim], [bs, bs, dim], [bs, bs, dim], [bs, 1, dim], [bs, dim]
 
             output = sim_matrix_training(text_embeds_stochastic, video_embeds_pooled, self.pooling_type)
             loss = self.loss(output, self.model.clip.logit_scale)
 
-            # @WJM: support text embedding regulrization
-            video_embeds_pooled_avg = torch.mean(video_embeds_pooled,dim=1).squeeze()
+            video_embeds_pooled_avg = torch.mean(video_embeds_pooled, dim=1).squeeze()
             pointer = video_embeds_pooled_avg - text_embeds
             text_support = pointer / pointer.norm(dim=-1, keepdim=True) * torch.exp(text_log_var) + text_embeds
             output_support = sim_matrix_training(text_support, video_embeds_pooled, self.pooling_type)
@@ -105,13 +80,9 @@ class Trainer(BaseTrainer):
             if self.config.noloss_record:
                 pass
             else:
-                gen_log(model_path=self.config.model_path, log_name='log_tot_loss',
-                        msg=loss_all.item())
-                gen_log(model_path=self.config.model_path, log_name='log_ori_loss',
-                        msg=loss.item())
-                gen_log(model_path=self.config.model_path, log_name='log_sup_loss',
-                        msg=loss_support.item())
-
+                gen_log(model_path=self.config.model_path, log_name='log_tot_loss', msg=loss_all.item())
+                gen_log(model_path=self.config.model_path, log_name='log_ori_loss', msg=loss.item())
+                gen_log(model_path=self.config.model_path, log_name='log_sup_loss', msg=loss_support.item())
 
             if batch_idx % self.log_step == 0:
                 msg = ('Train Epoch: {} dl: {}/{} Total Loss: {:.6f}, Original Loss: {:.6f}, Support Loss: {:.6f}'.format(
@@ -124,26 +95,27 @@ class Trainer(BaseTrainer):
                     ))
                 gen_log(model_path=self.config.model_path, log_name='log_trntst', msg=msg)
 
-
             if batch_idx in eval_steps:
 
                 if self.config.skip_eval:
                     msg = '\nSkip eval due to long time usage!\n'
                     gen_log(model_path=self.config.model_path, log_name='log_trntst', msg=msg)
-
                 else:
                     val_res = self._valid_epoch_step(epoch, batch_idx, num_steps-1)
                     self.model.train()
 
                     if val_res['R1-window'] > self.best_window:
                         self.best_window = val_res['R1-window']
-                        self._save_checkpoint(epoch, save_best=True)
+                        #self._save_checkpoint(epoch, loss_all.item(), save_best=True)  # 여기에 loss_all을 전달
 
                     if val_res['R1'] > self.best:
                         self.best = val_res['R1']
 
                     msg = (" Current Best Window Average R@1 is {}".format(self.best_window), " Current Best R@1 is {}\n\n".format(self.best))
                     gen_log(model_path=self.config.model_path, log_name='log_trntst', msg=msg)
+
+        # 에폭이 끝난 후 체크포인트를 저장
+        self._save_checkpoint(epoch, total_loss / num_steps, save_best=True)
 
         res = {
             'loss_train':  total_loss / num_steps
