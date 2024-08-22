@@ -72,7 +72,28 @@ class BaseTrainer:
         device = torch.device('cuda:0' if use_gpu else 'cpu')
         return device
 
-    def _save_checkpoint(self, epoch, save_best=False):
+    def _save_checkpoint(self, epoch, loss, save_best=False):
+        """
+        Saving checkpoints
+        :param epoch: current epoch number
+        :param save_best: if True, rename the saved checkpoint to 'model_best.pth'
+        :param loss: loss value to include in the checkpoint filename
+        """
+        '''if loss is None:
+            filename = os.path.join(self.config.model_path, f'checkpoint_epoch_{epoch}.pth')
+        else:'''
+        
+        state = {
+            'epoch': epoch,
+            'state_dict': self.model.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'config': self.config,
+        }
+        filename = f'.\ckpt\checkpoint_epoch_{epoch}_loss_{loss:.4f}.pth'
+        print(f"Saving checkpoint: {filename} ...")
+        torch.save(state, filename)
+        
+    '''def _save_checkpoint(self, epoch, save_best=False):
         """
         Saving checkpoints
         :param epoch: current epoch number
@@ -93,7 +114,7 @@ class BaseTrainer:
             filename = os.path.join(self.checkpoint_dir, 'checkpoint-epoch{}.pth'.format(epoch))
             torch.save(state, filename)
             print("Saving checkpoint: {} ...".format(filename))
-
+'''
 
     def load_checkpoint(self, model_name):
         """
@@ -117,7 +138,7 @@ class BaseTrainer:
 
     def load_bestmodel(self, model):
         # Load the model checkpoint from model_best.pth in the current directory
-        checkpoint_path = ".\model_best.pth" # 서버: "./model_best.pth" 
+        checkpoint_path = ".\model_best.pth" # 서버: "./model_best.pth"
         if os.path.exists(checkpoint_path):
             # 모델의 상태를 로드
             checkpoint = torch.load(checkpoint_path)
